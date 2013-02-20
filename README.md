@@ -1,7 +1,7 @@
 # c2ffi-cffi
 
 This is a bridge between [c2ffi](https://github.com/rpav/c2ffi) and
-(CFFI)[http://common-lisp.net/project/cffi/].  It reads the JSON
+[CFFI](http://common-lisp.net/project/cffi/).  It reads the JSON
 output produced by `c2ffi` and produces very readable input for CFFI.
 Example:
 
