@@ -1,0 +1,3 @@
+*.fasl
+example/example.lisp
+example/macros.lisp
