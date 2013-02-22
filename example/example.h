@@ -20,6 +20,22 @@ typedef struct {
   int a, b;
 } anonymous_t;
 
+typedef struct some_struct {
+  struct _some_internal_struct {
+    struct {
+      double x;
+    } a;
+    int x;
+    char c;
+
+    enum {
+      X, Y, Z
+    } m;
+  } s;
+
+  int blah;
+} some_struct_t;
+
 union my_union {
   char c;
   int i;
