@@ -43,54 +43,78 @@ enum some_values {
 void do_something(my_point_t *p, int x, int y);
 ```
 
-This produces the following:
+This produces the following two files:
 
 ```lisp
+;;;; example.lisp:
+
+(in-package :common-lisp-user)
+
+;; example.h:5:11
 (defconstant +bar+ 14)
 
+;; example.h:7:12
 (cffi:defcvar (someextern "SomeExtern") :int)
 
+;; example.h:9:6
 (cffi:defcfun (blah "blah")
     :void
   (x (:pointer :string)))
 
+;; example.h:11:14
 (cffi:defcvar (foo "foo") :string)
 
+;; example.h:13:16
 (cffi:defcstruct my-point
   (x :int)
   (y :int)
   (odd-value :int :count 15))
 
+;; example.h:17:3
 (cffi:defctype my-point-t my-point)
 
+;; example.h:21:3
 (progn
  (eval-when (:compile-toplevel :load-toplevel :execute)
-   (cffi:defcstruct #1=#:anon-type-1557
+   (cffi:defcstruct #1=#:anon-type-1587
      (a :int)
      (b :int)))
  (cffi:defctype anonymous-t #1#))
 
+;; example.h:23:7
 (cffi:defcstruct my-union
   (c :char)
   (i :int)
   (d :double))
 
+;; example.h:29:6
 (cffi:defcenum some-values
   (:a-value 0)
   (:another-value 1)
   (:yet-another-value 2))
 
+;; example.h:35:6
 (cffi:defcfun (do-something "do_something")
     :void
   (p (:pointer my-point-t))
   (x :int)
   (y :int))
 
-(defvar +quux+ "abc")
+(export
+ '(do-something some-values my-union anonymous-t my-point-t my-point foo blah
+                someextern +bar+))
 
-(defconstant +foo+ 4)
+;;;; macros.lisp:
+(common-lisp:in-package :c2ffi-another-package)
+
+;; macros.h:7:13
+(common-lisp:defvar +quux+ "abc")
+
+;; macros.h:8:18
+(common-lisp:defconstant +foo+ 4)
+
+(common-lisp:export '(+foo+ +quux+))
 ```
-
 
 ## Usage
 
