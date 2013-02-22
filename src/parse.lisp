@@ -122,5 +122,7 @@
     (when *output-package*
       (write-nicely out `(in-package ,*output-package*)))
     (loop for form in json do
+      (let ((loc (aval :location form)))
+        (when loc (format out "~&;; ~A~%" loc)))
       (write-nicely out (parse-toplevel form)))
     (write-nicely out `(export ',*export-symbols*))))

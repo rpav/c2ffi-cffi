@@ -4,7 +4,7 @@
 
 const int BAR = FOO + 10;
 
-extern SomeExtern;
+extern int SomeExtern;
 
 void blah(char *x[]);
 
