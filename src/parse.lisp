@@ -60,14 +60,14 @@
      (let ((pointee (parse-type type)))
        (if (or (equal '(:unsigned-char) pointee)
                (equal '(:char) pointee))
-           '(:string)
-           '(:pointer))))
+           (list :string)
+           (list :pointer))))
     ((tag ":function-pointer")
      '(:pointer))
     ((tag ":array" type size)
      (if *array-size-p*
          `(,@(parse-type type) :count ,size)
-         '(:pointer)))
+         (list :pointer)))
     ((or (tag ":struct" name)
          (tag "struct" name))
      `(,(parse-symbol name :cstruct)))
@@ -94,7 +94,7 @@
                                   (parse-toplevel val))))
                (when toplevel
                  (push toplevel toplevels))
-               (push `(,(parse-symbol name type)
+               (push `(,(or (parse-symbol name type) (gensym "PARAM-"))
                        ,@(if vals-are-types-p
                              (parse-type val)
                              (list val)))
