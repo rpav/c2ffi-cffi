@@ -25,6 +25,11 @@ typedef struct some_struct {
     struct {
       double x;
     } a;
+
+    struct {
+      int y;
+    } b[2];
+
     int x;
     char c;
 
@@ -47,6 +52,15 @@ enum some_values {
   another_value,
   yet_another_value
 };
+
+struct {
+  int x;
+  int y;
+} no_really[1];
+
+struct {
+  char c;
+} just_a_char;
 
 void do_something(my_point_t *p, int x, int y);
 

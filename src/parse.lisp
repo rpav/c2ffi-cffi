@@ -6,7 +6,9 @@
 
 (defun anonymous-p (form)
   (and (consp form)
-       (string= "" (aval :name form))))
+       (or (string= "" (aval :name form))
+           (and (string= ":array" (aval :tag form))
+                (string= "" (aval :name (aval :type form)))))))
 
 (defun make-anonymous-name ()
   (gensym "ANON-TYPE-"))
@@ -15,6 +17,7 @@
 (defvar *output-package* nil)
 
 (defvar *export-symbols* nil)
+(defvar *array-size-p* nil)
 
 (optima:defpattern tag (name &rest params)
   `(and (assoc :tag ,name)
@@ -33,6 +36,10 @@
           ((eq type :cenumfield)
            (alexandria:make-keyword string))
           (t (intern string package))))))
+
+(defmacro with-array-sizes (&body body)
+  `(let ((*array-size-p* t))
+     ,@body))
 
 (defvar *parse-symbol-fun* 'default-parse-symbol)
 
@@ -54,9 +61,13 @@
        (if (or (equal '(:unsigned-char) pointee)
                (equal '(:char) pointee))
            '(:string)
-           `(:pointer))))
+           '(:pointer))))
+    ((tag ":function-pointer")
+     '(:pointer))
     ((tag ":array" type size)
-     `(,@(parse-type type) :count ,size))
+     (if *array-size-p*
+         `(,@(parse-type type) :count ,size)
+         '(:pointer)))
     ((or (tag ":struct" name)
          (tag "struct" name))
      `(,(parse-symbol name :cstruct)))
@@ -77,7 +88,10 @@
                        (aval :value p))
           do (let* ((*anonymous-name* (when (anonymous-p val)
                                         (make-anonymous-name)))
-                    (toplevel (parse-toplevel val)))
+                    (toplevel (if (and vals-are-types-p
+                                       (string= ":array" (aval :tag val)))
+                                  (parse-toplevel (aval :type val))
+                                  (parse-toplevel val))))
                (when toplevel
                  (push toplevel toplevels))
                (push `(,(parse-symbol name type)
@@ -110,19 +124,21 @@
               ,@(parse-type return-type)
             ,@(parse-fields parameters :cparam)))
         ((tag "struct" fields)
-         (multiple-value-bind (fields toplevels)
-             (parse-fields fields :cfield)
-           `(progn
-              ,@toplevels
-              (cffi:defcstruct ,(parse-symbol name :cstruct)
-                ,@fields))))
+         (with-array-sizes
+           (multiple-value-bind (fields toplevels)
+               (parse-fields fields :cfield)
+             `(progn
+                ,@toplevels
+                (cffi:defcstruct ,(parse-symbol name :cstruct)
+                  ,@fields)))))
         ((tag "union" fields)
-         (multiple-value-bind (fields toplevels)
-             (parse-fields fields :cfield)
-           `(progn
-              ,@toplevels
-              (cffi:defcunion ,(parse-symbol name :cstruct)
-                ,@fields))))
+         (with-array-sizes
+           (multiple-value-bind (fields toplevels)
+               (parse-fields fields :cfield)
+             `(progn
+                ,@toplevels
+                (cffi:defcunion ,(parse-symbol name :cstruct)
+                  ,@fields)))))
         ((tag "enum" fields)
          `(cffi:defcenum ,(parse-symbol name :cenum)
             ,@(parse-fields fields :cenumfield nil)))))))
