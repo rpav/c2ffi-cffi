@@ -9,7 +9,7 @@
   :license "LLGPL"
   :version "0.0"
 
-  :depends-on (:alexandria :optima :cl-json)
+  :depends-on (:alexandria :cffi :optima :cl-json)
   :pathname "src"
   :serial t
 
