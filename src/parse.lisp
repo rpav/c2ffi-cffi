@@ -10,10 +10,14 @@
            (and (string= ":array" (aval :tag form))
                 (string= "" (aval :name (aval :type form)))))))
 
-(defun make-anonymous-name ()
-  (gensym "ANON-TYPE-"))
+(defun make-anonymous-name (id)
+  (or (and *anonymous-symbols*
+           (gethash id *anonymous-symbols*))
+      (setf (gethash id *anonymous-symbols*)
+            (make-symbol (format nil "ANON-TYPE-~A" id)))))
 
 (defvar *anonymous-name* nil)
+(defvar *anonymous-symbols* nil)
 (defvar *output-package* nil)
 
 (defvar *export-symbols* nil)
@@ -40,6 +44,18 @@
 (defmacro with-array-sizes (&body body)
   `(let ((*array-size-p* t))
      ,@body))
+
+(defun has-bitfields (fields)
+  (loop for f in fields do
+    (cond
+      ((equal ":bitfield" (cdr f))
+       (return t))
+      ((listp (car f))
+       (when (has-bitfields f)
+         (return t)))
+      ((listp (cdr f))
+       (when (has-bitfields (cdr f))
+         (return t))))))
 
 (defvar *parse-symbol-fun* 'default-parse-symbol)
 
@@ -87,7 +103,10 @@
                        (aval :type p)
                        (aval :value p))
           do (let* ((*anonymous-name* (when (anonymous-p val)
-                                        (make-anonymous-name)))
+                                        (if (and vals-are-types-p
+                                                 (string= ":array" (aval :tag val)))
+                                            (make-anonymous-name (aval :id (aval :type val)))
+                                            (make-anonymous-name (aval :id val)))))
                     (toplevel (if (and vals-are-types-p
                                        (string= ":array" (aval :tag val)))
                                   (parse-toplevel (aval :type val))
@@ -103,11 +122,14 @@
 
 (defun parse-toplevel (form)
   (when (consp form)
-    (let* ((name (aval :name form)))
+    (let* ((name (aval :name form))
+           (*anonymous-symbols*
+             (or *anonymous-symbols*
+                 (make-hash-table))))
       (optima:match form
         ((tag "typedef" type)
          (if (anonymous-p type)
-             (let ((*anonymous-name* (make-anonymous-name)))
+             (let ((*anonymous-name* (make-anonymous-name (aval :id type))))
                `(progn
                   ,(parse-toplevel type)
                   (cffi:defctype ,(parse-symbol name :ctype) ,*anonymous-name*)))
@@ -122,15 +144,18 @@
         ((tag "function" return-type parameters)
          `(cffi:defcfun (,(parse-symbol name :cfun) ,name)
               ,@(parse-type return-type)
-            ,@(parse-fields parameters :cparam)))
+            ,@(parse-fields parameters :cparam)
+            ,@(when (aval :variadic form)
+                '(&rest))))
         ((tag "struct" fields)
-         (with-array-sizes
-           (multiple-value-bind (fields toplevels)
-               (parse-fields fields :cfield)
-             `(progn
-                ,@toplevels
-                (cffi:defcstruct ,(parse-symbol name :cstruct)
-                  ,@fields)))))
+         (unless (has-bitfields fields)
+           (with-array-sizes
+             (multiple-value-bind (fields toplevels)
+                 (parse-fields fields :cfield)
+               `(progn
+                  ,@toplevels
+                  (cffi:defcstruct ,(parse-symbol name :cstruct)
+                    ,@fields))))))
         ((tag "union" fields)
          (with-array-sizes
            (multiple-value-bind (fields toplevels)

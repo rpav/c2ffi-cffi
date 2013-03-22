@@ -24,13 +24,13 @@ typedef struct some_struct {
   struct _some_internal_struct {
     struct {
       double x;
-    } a;
+    } a, b;
 
     struct {
       int y;
-    } b[2];
+    } x[2], y[1];
 
-    int x;
+    int i;
     char c;
 
     enum {
@@ -62,5 +62,10 @@ struct {
   char c;
 } just_a_char;
 
+struct should_be_ignored {
+  int x : 5;
+};  
+
 void do_something(my_point_t *p, int x, int y);
+void another_fun(char c, ...);
 
