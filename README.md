@@ -138,6 +138,9 @@ the files.  Easier, especially for projects, is to use the provided
 ASDF source-file type:
 
 ```lisp
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (asdf:load-system :c2ffi-cffi))
+
 (defsystem :my-system
   :
   :components ((c2ffi-cffi:spec "example")
