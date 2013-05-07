@@ -23,6 +23,9 @@
 (defvar *export-symbols* nil)
 (defvar *array-size-p* nil)
 
+(defvar *exclude-sources* nil)
+(defvar *exclude-definitions* nil)
+
 (optima:defpattern tag (name &rest params)
   `(and (assoc :tag ,name)
         ,@(loop for i in params
@@ -86,13 +89,13 @@
          (list :pointer)))
     ((or (tag ":struct" name)
          (tag "struct" name))
-     `(,(parse-symbol name :cstruct)))
+     `((:struct ,(or *anonymous-name* (parse-symbol name :cstruct)))))
     ((or (tag ":union" name)
          (tag "union" name))
-     `(,(parse-symbol name :cunion)))
+     `((:union ,(or *anonymous-name* (parse-symbol name :cunion)))))
     ((or (tag ":enum" name)
          (tag "enum" name))
-     `(,(parse-symbol name :cenum)))
+     `(,(or *anonymous-name* (parse-symbol name :cenum))))
     ((tag x) `(,(parse-symbol x :ctype)))))
 
 (defun parse-fields (parameters type &optional (vals-are-types-p t))
@@ -126,47 +129,48 @@
            (*anonymous-symbols*
              (or *anonymous-symbols*
                  (make-hash-table))))
-      (optima:match form
-        ((tag "typedef" type)
-         (if (anonymous-p type)
-             (let ((*anonymous-name* (make-anonymous-name (aval :id type))))
-               `(progn
-                  ,(parse-toplevel type)
-                  (cffi:defctype ,(parse-symbol name :ctype) ,*anonymous-name*)))
-             `(cffi:defctype ,(parse-symbol name :ctype) ,@(parse-type type))))
-        ((tag "const" value)
-         (if (numberp value)
-             `(defconstant ,(parse-symbol name :cconst) ,value)
-             `(defvar ,(parse-symbol name :cconst) ,value)))
-        ((tag "extern" type)
-         `(cffi:defcvar (,(parse-symbol name :cvar) ,name)
-              ,@(parse-type type)))
-        ((tag "function" return-type parameters)
-         `(cffi:defcfun (,(parse-symbol name :cfun) ,name)
-              ,@(parse-type return-type)
-            ,@(parse-fields parameters :cparam)
-            ,@(when (aval :variadic form)
-                '(&rest))))
-        ((tag "struct" fields)
-         (unless (has-bitfields fields)
+      (unless (excluded-p name *exclude-definitions*)
+        (optima:match form
+          ((tag "typedef" type)
+           (if (anonymous-p type)
+               (let ((*anonymous-name* (make-anonymous-name (aval :id type))))
+                 `(progn
+                    ,(parse-toplevel type)
+                    (cffi:defctype ,(parse-symbol name :ctype) ,@(parse-type type))))
+               `(cffi:defctype ,(parse-symbol name :ctype) ,@(parse-type type))))
+          ((tag "const" value)
+           (if (numberp value)
+               `(defconstant ,(parse-symbol name :cconst) ,value)
+               `(defvar ,(parse-symbol name :cconst) ,value)))
+          ((tag "extern" type)
+           `(cffi:defcvar (,(parse-symbol name :cvar) ,name)
+                ,@(parse-type type)))
+          ((tag "function" return-type parameters)
+           `(cffi:defcfun (,(parse-symbol name :cfun) ,name)
+                ,@(parse-type return-type)
+              ,@(parse-fields parameters :cparam)
+              ,@(when (aval :variadic form)
+                  '(&rest))))
+          ((tag "struct" fields)
+           (unless (has-bitfields fields)
+             (with-array-sizes
+               (multiple-value-bind (fields toplevels)
+                   (parse-fields fields :cfield)
+                 `(progn
+                    ,@toplevels
+                    (cffi:defcstruct ,(parse-symbol name :cstruct)
+                      ,@fields))))))
+          ((tag "union" fields)
            (with-array-sizes
              (multiple-value-bind (fields toplevels)
                  (parse-fields fields :cfield)
                `(progn
                   ,@toplevels
-                  (cffi:defcstruct ,(parse-symbol name :cstruct)
-                    ,@fields))))))
-        ((tag "union" fields)
-         (with-array-sizes
-           (multiple-value-bind (fields toplevels)
-               (parse-fields fields :cfield)
-             `(progn
-                ,@toplevels
-                (cffi:defcunion ,(parse-symbol name :cstruct)
-                  ,@fields)))))
-        ((tag "enum" fields)
-         `(cffi:defcenum ,(parse-symbol name :cenum)
-            ,@(parse-fields fields :cenumfield nil)))))))
+                  (cffi:defcunion ,(parse-symbol name :cstruct)
+                    ,@fields)))))
+          ((tag "enum" fields)
+           `(cffi:defcenum ,(parse-symbol name :cenum)
+              ,@(parse-fields fields :cenumfield nil))))))))
 
 (defun parse-file-to-file (input-file output-file &optional (append-p nil))
   (with-open-file (out output-file
@@ -188,14 +192,25 @@
          :readably t)
   (format stream "~%~%"))
 
+(defun excluded-p (thing excludes)
+  (when thing
+    (loop for scanner in excludes do
+      (when (cl-ppcre:scan scanner thing)
+        (return t)))))
+
 (defun parse (json &optional (out *standard-output*))
   (format out "~&")
   (let ((*package* (find-package (or *output-package* *package*)))
-        (*export-symbols* nil))
+        (*export-symbols* nil)
+        (*exclude-sources*
+          (mapcar #'cl-ppcre:create-scanner *exclude-sources*))
+        (*exclude-definitions*
+          (mapcar #'cl-ppcre:create-scanner *exclude-definitions*)))
     (when *output-package*
       (write-nicely out `(in-package ,*output-package*)))
     (loop for form in json do
       (let ((loc (aval :location form)))
-        (when loc (format out "~&;; ~A~%" loc)))
-      (write-nicely out (parse-toplevel form)))
+        (unless (excluded-p loc *exclude-sources*)
+          (when loc (format out "~&;; ~A~%" loc))
+          (write-nicely out (parse-toplevel form)))))
     (write-nicely out `(export ',*export-symbols*))))

@@ -153,3 +153,30 @@ top of the generated files.  Otherwise this will default to
 Note that the package must exist at the time the file is loaded, or
 you will get an error.  This is necessary to write fully-qualified
 symbols.
+
+### Exclusions
+
+Because some things are not supported by CFFI, like bitfields, and
+some are occasionally even unsupported by c2ffi (vector literals?),
+you can now specify exclusions as follows:
+
+```lisp
+(let ((c2ffi-cffi:*exclude-sources*
+       '("/path/to/bad-stuff/.*" ...))
+      (c2ffi-cffi:*exclude-definitions*
+       '("SomeBadCFun1" "SomeBad.*Funs")))
+  (c2ffi-cffi:parse...))
+```
+
+Both use `cl-ppcre` regexps to pre-exclude entire files or specific
+definitions.  You will simply see the file/line and `nil` in the
+output.
+
+This is also supported with ASDF:
+
+```lisp
+  :
+  :components ((c2ffi-cffi:spec "example"
+                  :exclude-sources ("/path/.*" ...)
+                  :exclude-definitions ("Bad.*Defs" ...)))
+```
