@@ -1,4 +1,10 @@
-# c2ffi-cffi
+# DEPRECATED
+
+This project is deprecated in favor of
+[cl-autowrap](https://github.com/rpav/cl-autowrap) which does a whole
+lot more with a lot less work.
+
+## c2ffi-cffi
 
 This is a bridge between [c2ffi](https://github.com/rpav/c2ffi) and
 [CFFI](http://common-lisp.net/project/cffi/).  It reads the JSON
